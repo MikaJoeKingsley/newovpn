@@ -84,16 +84,29 @@ mkdir -p /etc/ErwanScript
 echo "$FULL_DOMAIN" > /etc/ErwanScript/domain
 
 echo "[+] Waiting DNS propagation..."
-sleep 10
+DNS_WAIT=0
+until ping -c1 $FULL_DOMAIN &>/dev/null; do
+  sleep 5
+  DNS_WAIT=$((DNS_WAIT+5))
+  [ $DNS_WAIT -gt 120 ] && echo "DNS timeout!" && exit 1
+done
 
 ################################
 # LET'S ENCRYPT SSL
 ################################
 
-echo "[+] Requesting SSL certificate..."
+echo "[+] Preparing ports for SSL..."
 
+# Stop services using ports 80/443
+systemctl stop ws-ovpn 2>/dev/null || true
 systemctl stop squid 2>/dev/null || true
 systemctl stop stunnel4 2>/dev/null || true
+
+# Kill anything still using ports
+fuser -k 80/tcp || true
+fuser -k 443/tcp || true
+
+echo "[+] Requesting SSL certificate..."
 
 certbot certonly --standalone \
 --preferred-challenges http \
@@ -217,6 +230,8 @@ dh none
 server 10.10.0.0 255.255.255.0
 topology subnet
 
+tls-cipher DEFAULT:@SECLEVEL=0
+
 keepalive 10 60
 persist-key
 persist-tun
@@ -260,17 +275,17 @@ systemctl restart openvpn-server@udp
 echo "[+] Configuring SSL tunnel..."
 
 cat >/etc/stunnel/stunnel.conf <<EOF
-foreground = yes
+foreground = no
+pid = /var/run/stunnel.pid
 cert = $SSL_CERT
 key = $SSL_KEY
-client = no
 
 [openvpn]
 accept = 443
 connect = 127.0.0.1:1194
 EOF
 
-
+systemctl daemon-reexec
 systemctl enable stunnel4
 systemctl restart stunnel4
 
@@ -326,7 +341,10 @@ echo "[+] Configuring firewall..."
 
 IFACE=$(ip route get 1 | awk '{print $5; exit}')
 
-iptables -F
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 iptables -A INPUT -p tcp --dport 1194 -j ACCEPT
 iptables -A INPUT -p udp --dport 110 -j ACCEPT
 iptables -A INPUT -p tcp --dport 443 -j ACCEPT
@@ -339,7 +357,7 @@ iptables -t nat -A POSTROUTING -o $IFACE -j MASQUERADE
 
 iptables-save > /etc/iptables/rules.v4
 sysctl -w net.ipv4.ip_forward=1
-
+echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
 ################################
 # MARIADB
 ################################
