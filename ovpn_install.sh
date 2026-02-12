@@ -113,7 +113,7 @@ certbot certonly --standalone \
 -d "$FULL_DOMAIN" \
 --non-interactive \
 --agree-tos \
--m admin@$DOMAIN_NAME
+[ -z "$DOMAIN_NAME" ] && echo "Domain missing!" && exit 1
 
 SSL_CERT="/etc/letsencrypt/live/$FULL_DOMAIN/fullchain.pem"
 SSL_KEY="/etc/letsencrypt/live/$FULL_DOMAIN/privkey.pem"
@@ -238,7 +238,7 @@ persist-tun
 
 verify-client-cert none
 username-as-common-name
-plugin $PLUGIN login
+plugin $PLUGIN openvpn
 duplicate-cn
 
 tls-version-min 1.2
@@ -276,6 +276,7 @@ echo "[+] Configuring SSL tunnel..."
 
 cat >/etc/stunnel/stunnel.conf <<EOF
 foreground = no
+client = no
 pid = /var/run/stunnel.pid
 cert = $SSL_CERT
 key = $SSL_KEY
@@ -285,7 +286,7 @@ accept = 443
 connect = 127.0.0.1:1194
 EOF
 
-systemctl daemon-reexec
+systemctl daemon-reload
 systemctl enable stunnel4
 systemctl restart stunnel4
 
@@ -341,6 +342,8 @@ echo "[+] Configuring firewall..."
 
 IFACE=$(ip route get 1 | awk '{print $5; exit}')
 
+iptables -F
+iptables -t nat -F
 iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
