@@ -4,6 +4,7 @@ set -e
 ################################
 # VALIDATE INPUT
 ################################
+echo 1 > /proc/sys/net/ipv4/ip_forward
 
 SERVER_ID="${1:-}"
 INSTALL_TOKEN="${2:-}"
@@ -77,8 +78,8 @@ curl -s -X POST "$API_ENDPOINT/$ZONE_ID/dns_records" \
 -H "Content-Type: application/json" \
 --data "$A_RECORD"
 
-mkdir -p /etc/JuanScript
-echo "$FULL_DOMAIN" > /etc/JuanScript/domain
+mkdir -p /etc/ErwanScript
+echo "$FULL_DOMAIN" > /etc/ErwanScript/domain
 
 echo "[+] Waiting DNS propagation..."
 sleep 10
@@ -197,6 +198,11 @@ chmod 600 /etc/openvpn/certificates/server.key
 echo "[+] Configuring OpenVPN..."
 
 PLUGIN=$(find /usr -name openvpn-plugin-auth-pam.so | head -n1)
+if [ -z "$PLUGIN" ]; then
+  echo "OpenVPN auth plugin not found!"
+  exit 1
+fi
+
 mkdir -p /etc/openvpn/server
 
 COMMON_CFG="
@@ -218,8 +224,8 @@ username-as-common-name
 plugin $PLUGIN login
 duplicate-cn
 
-tls-version-min 1.0
-auth SHA1
+tls-version-min 1.2
+auth SHA256
 data-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC
 data-ciphers-fallback AES-256-CBC
 
@@ -252,6 +258,7 @@ systemctl restart openvpn-server@udp
 echo "[+] Configuring SSL tunnel..."
 
 cat >/etc/stunnel/stunnel.conf <<EOF
+foreground = yes
 cert = $SSL_CERT
 key = $SSL_KEY
 client = no
@@ -260,6 +267,7 @@ client = no
 accept = 443
 connect = 127.0.0.1:1194
 EOF
+
 
 systemctl enable stunnel4
 systemctl restart stunnel4
