@@ -108,12 +108,14 @@ fuser -k 443/tcp || true
 
 echo "[+] Requesting SSL certificate..."
 
+[ -z "$DOMAIN_NAME" ] && echo "Domain missing!" && exit 1
+
 certbot certonly --standalone \
 --preferred-challenges http \
 -d "$FULL_DOMAIN" \
 --non-interactive \
 --agree-tos \
-[ -z "$DOMAIN_NAME" ] && echo "Domain missing!" && exit 1
+-m "$AUTH_EMAIL"
 
 SSL_CERT="/etc/letsencrypt/live/$FULL_DOMAIN/fullchain.pem"
 SSL_KEY="/etc/letsencrypt/live/$FULL_DOMAIN/privkey.pem"
@@ -238,7 +240,7 @@ persist-tun
 
 verify-client-cert none
 username-as-common-name
-plugin $PLUGIN openvpn
+plugin $PLUGIN login
 duplicate-cn
 
 tls-version-min 1.2
