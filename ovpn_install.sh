@@ -269,6 +269,20 @@ systemctl restart openvpn-server@tcp
 systemctl restart openvpn-server@udp
 
 ################################
+# OPENVPN PAM AUTH FIX
+################################
+
+echo "[+] Configuring OpenVPN PAM..."
+
+cat >/etc/pam.d/openvpn <<EOF
+auth required pam_unix.so
+account required pam_unix.so
+EOF
+
+systemctl restart openvpn-server@tcp
+systemctl restart openvpn-server@udp
+
+################################
 # STUNNEL SSL 443
 ################################
 
