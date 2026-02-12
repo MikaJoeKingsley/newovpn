@@ -84,12 +84,7 @@ mkdir -p /etc/ErwanScript
 echo "$FULL_DOMAIN" > /etc/ErwanScript/domain
 
 echo "[+] Waiting DNS propagation..."
-DNS_WAIT=0
-until ping -c1 $FULL_DOMAIN &>/dev/null; do
-  sleep 5
-  DNS_WAIT=$((DNS_WAIT+5))
-  [ $DNS_WAIT -gt 120 ] && echo "DNS timeout!" && exit 1
-done
+sleep 10
 
 ################################
 # LET'S ENCRYPT SSL
