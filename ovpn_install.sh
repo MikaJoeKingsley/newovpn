@@ -108,14 +108,12 @@ fuser -k 443/tcp || true
 
 echo "[+] Requesting SSL certificate..."
 
-[ -z "$DOMAIN_NAME" ] && echo "Domain missing!" && exit 1
-
 certbot certonly --standalone \
-  --preferred-challenges http \
-  -d "$FULL_DOMAIN" \
-  --non-interactive \
-  --agree-tos \
-  -m "$AUTH_EMAIL"
+--preferred-challenges http \
+-d "$FULL_DOMAIN" \
+--non-interactive \
+--agree-tos \
+-m admin@$DOMAIN_NAME
 
 SSL_CERT="/etc/letsencrypt/live/$FULL_DOMAIN/fullchain.pem"
 SSL_KEY="/etc/letsencrypt/live/$FULL_DOMAIN/privkey.pem"
