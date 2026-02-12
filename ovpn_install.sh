@@ -300,8 +300,13 @@ systemctl enable stunnel4
 systemctl restart stunnel4
 
 ################################
-# WEBSOCKET PORT 80
+# WEBSOCKET SERVER (REAL WS)
 ################################
+
+echo "[+] Installing WebSocket server..."
+
+apt install -y python3 python3-pip
+pip3 install websockets
 
 echo "[+] Configuring WebSocket..."
 
@@ -311,8 +316,9 @@ Description=WebSocket OpenVPN Tunnel
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/socat TCP-LISTEN:80,fork TCP:127.0.0.1:1194
+ExecStart=/usr/bin/python3 /usr/local/bin/ws-ovpn.py
 Restart=always
+User=root
 
 [Install]
 WantedBy=multi-user.target
@@ -328,7 +334,7 @@ systemctl restart ws-ovpn
 
 echo "[+] Configuring Squid..."
 
-cat >/etc/squid/squid.conf <<EOF
+/etc/squid/squid.conf <<EOF
 http_port 8080
 http_port 8000
 
@@ -370,6 +376,51 @@ iptables -t nat -A POSTROUTING -o $IFACE -j MASQUERADE
 iptables-save > /etc/iptables/rules.v4
 sysctl -w net.ipv4.ip_forward=1
 echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+
+cat >/usr/local/bin/ws-ovpn.py <<'EOF'
+#!/usr/bin/env python3
+import asyncio
+import websockets
+import socket
+
+OPENVPN_HOST = "127.0.0.1"
+OPENVPN_PORT = 1194
+
+async def handler(websocket):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((OPENVPN_HOST, OPENVPN_PORT))
+    sock.setblocking(False)
+
+    async def ws_to_tcp():
+        try:
+            async for message in websocket:
+                sock.sendall(message)
+        except:
+            pass
+
+    async def tcp_to_ws():
+        loop = asyncio.get_event_loop()
+        try:
+            while True:
+                data = await loop.sock_recv(sock, 4096)
+                if not data:
+                    break
+                await websocket.send(data)
+        except:
+            pass
+
+    await asyncio.gather(ws_to_tcp(), tcp_to_ws())
+    sock.close()
+
+async def main():
+    async with websockets.serve(handler, "0.0.0.0", 80):
+        await asyncio.Future()
+
+asyncio.run(main())
+EOF
+
+chmod +x /usr/local/bin/ws-ovpn.py
+
 ################################
 # MARIADB
 ################################
